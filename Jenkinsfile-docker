@@ -1,0 +1,110 @@
+pipeline {
+    agent any 
+    environment {
+        registryCredential = 'ecr:eu-north-1:awscred'
+        appRegistry = '072824470958.dkr.ecr.eu-north-1.amazonaws.com/boma-vprofile'
+        vprofileRegistry = 'https://072824470958.dkr.ecr.eu-north-1.amazonaws.com'
+        cluster = 'boma-vprofile1'
+        service = 'boma-vprofile-svc'
+    }
+
+    tools {
+        maven "maven3"
+        jdk "OracleJDK8"
+    }
+    stages {
+        stage('Fetch code') {
+            steps {
+                git branch: 'docker', url: 'https://github.com/nbomasi/vprofile-project-boma.git'
+            }
+        }
+        
+
+        stage('Unit Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('checkstyle Analysis') {
+            steps {
+                sh 'mvn checkstyle:checkstyle'
+            }
+            post {
+                success {
+                    echo 'Generated Analysis Result'
+                }
+            }
+        }
+
+        stage('SonarQube analysis') {
+            environment {
+                scannerHome = tool 'sonar4.7'
+            }
+             steps {
+                withSonarQubeEnv('sonar') {
+                    sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
+                   -Dsonar.projectName=vprofile-repo \
+                   -Dsonar.projectVersion=1.0 \
+                   -Dsonar.sources=src/ \
+                   -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ \
+                   -Dsonar.junit.reportsPath=target/surefire-reports/ \
+                   -Dsonar.jacoco.reportsPath=target/jacoco.exec \
+                   -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
+
+                   '''
+                }   
+            }
+        }
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 3, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }    
+        
+        //Building the docker image
+        stage('Build App Image') {
+            steps {
+                script{
+                    dockerimage = docker.build( appRegistry + ":$BUILD_NUMBER", "Docker-files/app/multistage/")
+                }
+            }
+        }
+        
+        // stage('Upload App Image') {
+        //     steps {
+        //         script.withRegistry( vprofileRegistry, registryCredential ) {
+        //             dockerImage.push("BUILD_NUMBER")
+        //             dockerImage.push('latest')
+        //         }
+        //     }
+        stage('Upload App Image') {
+            steps {
+                script {
+                    // dockerimage = docker.build("dockerimage:${BUILD_NUMBER}")
+                    docker.withRegistry( vprofileRegistry, registryCredential ) {
+                        dockerimage.push("${BUILD_NUMBER}")
+                        dockerimage.push('latest')
+                    }
+                }
+            }
+
+            post {
+                success {
+                    echo 'Image pushed to registry'
+                }
+            }
+        }
+        stage('container run') {
+            steps {
+                withAWS(credentials: 'awscred', region: 'eu-north-1') {
+                    sh 'aws ecs update-service --cluster ${cluster} --service ${service} --force-new-deployment'
+                }
+            }
+        }
+
+        
+    }
+}
