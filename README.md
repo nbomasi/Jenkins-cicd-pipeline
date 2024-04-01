@@ -28,7 +28,7 @@ The only difference here is that I replace Nexus part with Docker build and save
 
    **Note:** First install java from the same site, then install the Long Term Support release of Jenkins.
 
-2. Create 1 AWS EC2 instances for Sonarqube server,(Ubuntu, t2.medium). To install sonarqube I used the following [tscript](sonarqube.sh), although, manual way can be found on the ower's [website](https://docs.sonarsource.com/sonarqube/latest/setup-and-upgrade/install-the-server/introduction/).
+2. Create 1 AWS EC2 instances for Sonarqube server,(Ubuntu, t2.medium). To install sonarqube I used the following [script](sonarqube.sh),   although, manual way can be found on the ower's [website](https://docs.sonarsource.com/sonarqube/latest/setup-and-upgrade/install-the-server/introduction/).
 
 Next is to install sonar-scanner plugin in jenkins and then set it up in jenkins systems configuration, and to setup quality gateway, token will be created in sonar GUI.
 
@@ -85,6 +85,7 @@ sonar-scanner -h
 * Stages
 * Step
 
+```markdown
 pipeline {
     agent any
     stages {
@@ -106,7 +107,9 @@ pipeline {
         
     }
 }
+```
 
+```markdown
 The full concept
 pipeline {
 
@@ -128,6 +131,7 @@ pipeline {
 
 }
 
+```
 With the above jenkins file concept, the following Jenkinsfile were used for both Sonarqube and Nexus 
 [Jenkinsfile](Jenkinsfile)
 
